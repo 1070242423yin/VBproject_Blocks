@@ -1,0 +1,492 @@
+Public Class Form1
+    Dim nowBlock, nextBlock As Integer
+    Dim count, grade, level As Integer
+    Dim nowPlace As Point
+    Dim drop(3), preview(3), spin(3), sunk(1023) As Label
+    Dim sunkBlock(17, 11)， shine(3) As Integer
+
+    Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        Randomize()
+        nextBlock = Int(Rnd() * 7 + 1)
+        DrawBlock(2, nextBlock)
+        level = 1
+    End Sub
+
+    Private Sub Panel1_Paint(sender As Object, e As PaintEventArgs) Handles Panel1.Paint
+
+    End Sub
+
+    Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+        If Not Timer1.Enabled Then
+            ClearBlock()
+            NewDrop()
+            Timer1.Start()
+            Label2.Text = "得分: 0"
+            Button1.Text = "结束(&O)"
+        Else
+            OverGame()
+            Button1.Text = "开始(&O)"
+        End If
+    End Sub
+
+    Private Sub Timer1_Tick(sender As Object, e As EventArgs) Handles Timer1.Tick
+        If Not Intect() Then
+            MoveBlock(1)
+        Else
+            SinkBlock()
+        End If
+    End Sub
+
+    Private Function Intect(Optional toward As Integer = 1) As Boolean
+        If toward = 1 Then
+            For Each l In drop
+                If l.Top + 20 >= Panel1.Height Then
+                    Return True
+                ElseIf sunkBlock(Int(l.Top / 20) + 1, Int(l.Left / 20)) = 1 Then
+                    Return True
+                End If
+            Next
+        ElseIf toward = 2 Then
+            For Each l In drop
+                If l.Left <= Panel1.Left Then
+                    Return True
+                ElseIf sunkBlock(Int(l.Top / 20), Int(l.Left / 20) - 1) = 1 Then
+                    Return True
+                End If
+            Next
+        ElseIf toward = 3 Then
+            For Each l In drop
+                If l.Left + 20 >= Panel1.Width Then
+                    Return True
+                ElseIf sunkBlock(Int(l.Top / 20), Int(l.Left / 20) + 1) = 1 Then
+                    Return True
+                End If
+            Next
+        End If
+        Return False
+    End Function    '检测移动
+
+    Private Function IntectRow(row As Integer) As Boolean
+        Dim isFull As Boolean = True
+        For x = 0 To 11
+            If sunkBlock(row, x) = 0 Then
+                isFull = False
+                Exit For
+            End If
+        Next
+        Return isFull
+    End Function    '检测行满
+
+    Private Function IntectSpin(toward As Boolean) As Boolean
+        Dim spinBlock As Integer
+        Dim spinAble As Boolean = True
+        If toward Then
+            spinBlock = nowBlock + 7
+        Else
+            spinBlock = nowBlock - 7
+        End If
+        DrawBlock(4, spinBlock)
+        For Each l In spin
+            If l.Top >= Panel1.Height Or l.Left + 20 <= Panel1.Left Or
+            l.Left >= Panel1.Width Then
+                spinAble = False
+                Exit For
+            ElseIf sunkBlock(Int(l.Top / 20), Int(l.Left / 20)) = 1 Then
+                spinAble = False
+                Exit For
+            End If
+        Next
+        ClearBlock(4)
+        Return Not spinAble
+    End Function    '判断可以旋转
+
+    Private Sub NewDrop()
+        DrawBlock(1, nextBlock)
+        nowBlock = nextBlock
+        Randomize()
+        nextBlock = Int(Rnd() * 7 + 1)
+        ClearBlock(2)
+        DrawBlock(2, nextBlock)
+    End Sub
+
+    Private Sub MoveBlock(toward As Integer)
+        If toward = 1 Then      '方向1↓，2←，3→
+            For Each l In drop
+                l.Top += 20
+            Next
+            nowPlace.Y += 20
+        ElseIf toward = 2 Then
+            For Each l In drop
+                l.Left -= 20
+            Next
+            nowPlace.X -= 20
+        ElseIf toward = 3 Then
+            For Each l In drop
+                l.Left += 20
+            Next
+            nowPlace.X += 20
+        End If
+    End Sub
+
+    Private Sub ClearBlock(Optional labNo As Integer = 1)
+        If labNo = 1 Then       '默认清除下落方块
+            For Each l In drop
+                Panel1.Controls.Remove(l)
+            Next
+        ElseIf labNo = 2 Then   '清除预览方块
+            For Each l In preview
+                Controls.Remove(l)
+            Next
+        ElseIf labNo = 3 Then   '清除掉落方块
+            For Each l In sunk
+                Panel1.Controls.Remove(l)
+            Next
+        ElseIf labNo = 4 Then
+            For Each l In spin
+                Panel1.Controls.Remove(l)
+                Erase spin
+                ReDim spin(3)
+            Next
+        End If
+    End Sub   '清除同组方块
+
+    Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
+        If Timer1.Enabled Then
+
+            Timer1.Stop()
+            MsgBox("暂停！")
+            Timer1.Start()
+        End If
+    End Sub
+
+    Private Sub SinkBlock()
+        DrawBlock(3, nowBlock)
+        For Each l In drop
+            sunkBlock(Int(l.Top / 20), Int(l.Left / 20)) = 1
+        Next
+        count += 4
+        ClearBlock()
+        FindRows()
+        For c = 4 To 8
+            If sunkBlock(0, c) = 1 Then
+                OverGame()
+            End If
+        Next
+        'Writesunk()
+    End Sub    '方块沉积
+
+    Private Sub FindRows()
+        NewDrop()
+        Dim y As Integer = 17 - Int(nowPlace.Y / 20)
+        Dim top As Integer = IIf(y - 4 > 0, y - 4, 0)
+        ReDim shine(3)
+        shine = {-1, -1, -1, -1}
+        Dim ct As Integer
+        For row = top To y
+            If IntectRow(row) And row <= y Then
+                shine(ct) = row
+                ct += 1
+            End If
+        Next
+        If ct > 0 Then
+            Timer1.Stop()
+            Timer2.Start()
+        End If
+    End Sub
+
+    Private Sub NumericUpDown1_ValueChanged(sender As Object, e As EventArgs) Handles NumericUpDown1.ValueChanged
+        If Not NumericUpDown1.Value > 9 Then
+            level = NumericUpDown1.Value
+            Timer1.Interval = 1000 - level * 100
+        Else
+            NumericUpDown1.Value = 9
+        End If
+        Me.Focus()
+    End Sub
+
+    Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
+        If Not Timer1.Enabled Then
+            Dim rows = Int(InputBox("初始行数")) - 1
+            If rows > 13 Then
+                rows = 13
+            ElseIf rows < 0 Then
+                rows = 0
+            End If
+            ClearBlock(3)
+            ReDim sunkBlock(17, 11)
+            count = 0
+            For i = 17 - rows To 17
+                Randomize()
+                Dim blank As Integer = Int(Rnd() * 12)
+                For j = 0 To 11
+                    If j <> blank And Rnd() > 0.5 Then
+                        sunk(count) = New Label
+                        Panel1.Controls.Add(sunk(count))
+                        sunk(count).Location = New Point(j * 20 + 1, i * 20 + 1)
+                        sunk(count).Size = New Size(18, 18)
+                        sunk(count).BackColor = Color.Gray
+                        sunk(count).BorderStyle = BorderStyle.FixedSingle
+                        count += 1
+                        sunkBlock(i, j) = 1
+                    End If
+                Next
+            Next
+        End If
+    End Sub
+
+    Private Sub Timer3_Tick(sender As Object, e As EventArgs) Handles Timer3.Tick
+        For s = 0 To 3
+            If shine(s) <> -1 Then
+                ClearRow(shine(s))
+                Droprow(shine(s))
+            End If
+        Next
+        Label2.Text = "得分： " + Str(grade).Trim
+        Timer1.Start()
+        Timer2.Stop()
+        Timer3.Stop()
+    End Sub
+
+    Private Sub Timer2_Tick(sender As Object, e As EventArgs) Handles Timer2.Tick
+        For s = 0 To 3
+            If shine(s) <> -1 Then
+                For c = 0 To count - 1
+                    If Int(sunk(c).Top / 20) = shine(s) Then
+                        sunk(c).BackColor = Color.FromArgb(255, Int(Rnd() * 255), Int(Rnd() * 255), Int(Rnd() * 255))
+                    End If
+                Next
+
+            End If
+        Next
+        Timer3.Start()
+    End Sub
+
+    Private Sub OverGame()
+        Panel1.Visible = False
+        Timer1.Stop()
+        MsgBox("游戏结束，您的得分是" + Str(grade).Trim)
+        ClearBlock()
+        ClearBlock(3)
+        NumericUpDown1.Value = 0
+        count = 0
+        grade = 0
+        Button1.Text = "开始(&O)"
+        Erase sunkBlock
+        ReDim sunkBlock(17, 11)
+        Panel1.Visible = True
+    End Sub    '结束游戏
+
+    Private Sub ClearRow(row As Integer)
+        For c = 0 To count - 1
+            If Int(sunk(c).Top / 20) = row Then
+                Panel1.Controls.Remove(sunk(c))
+            End If
+        Next
+        grade += 1
+        If grade Mod 12 = 0 Then
+            NumericUpDown1.Value += 1
+        End If
+    End Sub    '清除同行方块
+
+    Private Sub Droprow(row As Integer)
+        For c = 0 To count - 1
+            If Int(sunk(c).Top / 20) < row Then
+                sunk(c).Top += 20
+            End If
+        Next
+        For r = row To 1 Step -1
+            For c = 0 To 11
+                sunkBlock(r, c) = sunkBlock(r - 1, c)
+            Next
+        Next
+    End Sub    '行方块下沉
+
+    Private Sub SpinBlock(Optional toward As Boolean = True)
+        Dim spinBlock As Integer
+        If toward Then
+            spinBlock = nowBlock + 7
+        Else
+            spinBlock = nowBlock - 7
+        End If
+        If Not IntectSpin(toward) Then
+            nowBlock = spinBlock
+            ClearBlock()
+            DrawBlock(1, nowBlock, Int(nowPlace.X / 20), Int(nowPlace.Y / 20))
+        End If
+    End Sub    '旋转下落方块，true：右旋
+
+    Private Sub DrawBlock(Optional labNo As Integer = 1, Optional type As Integer = 0,
+                          Optional i As Integer = 4, Optional j As Integer = 0)
+        Dim co As Color
+        Dim block(,) As Integer
+        Dim index As Integer
+        If type = 0 Then        '默认绘制当前方块
+            type = nowBlock
+        End If
+        Do While type > 28 Or type <= 0
+            If type > 28 Then
+                type -= 28
+            Else
+                type += 28
+            End If
+        Loop    '确保type在1-28
+        If type Mod 14 = 1 Then
+            block = {{0, 0, 0, 0}, {1, 1, 1, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Red
+        ElseIf type Mod 7 = 2 Then
+            block = {{0, 1, 1, 0}, {0, 1, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Orange
+        ElseIf type Mod 14 = 3 Then
+            block = {{1, 1, 0, 0}, {0, 1, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Green
+        ElseIf type Mod 28 = 4 Then
+            block = {{1, 1, 1, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Blue
+        ElseIf type Mod 14 = 5 Then
+            block = {{0, 1, 1, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Green
+        ElseIf type Mod 28 = 6 Then
+            block = {{1, 1, 1, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Blue
+        ElseIf type Mod 28 = 7 Then
+            block = {{0, 1, 0, 0}, {1, 1, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Purple
+        ElseIf type Mod 14 = 8 Then
+            block = {{0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}}
+            co = Color.Red
+        ElseIf type Mod 14 = 10 Then
+            block = {{0, 1, 0, 0}, {1, 1, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Green
+        ElseIf type Mod 28 = 11 Then
+            block = {{0, 0, 1, 0}, {0, 0, 1, 0}, {0, 1, 1, 0}, {0, 0, 0, 0}}
+            co = Color.Blue
+        ElseIf type Mod 14 = 12 Then
+            block = {{0, 1, 0, 0}, {0, 1, 1, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}}
+            co = Color.Green
+        ElseIf type Mod 28 = 13 Then
+            block = {{0, 1, 1, 0}, {0, 0, 1, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}}
+            co = Color.Blue
+        ElseIf type Mod 28 = 14 Then
+            block = {{0, 1, 0, 0}, {0, 1, 1, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Purple
+        ElseIf type Mod 28 = 18 Then
+            block = {{0, 0, 0, 0}, {1, 0, 0, 0}, {1, 1, 1, 0}, {0, 0, 0, 0}}
+            co = Color.Blue
+        ElseIf type Mod 28 = 20 Then
+            block = {{0, 0, 0, 0}, {0, 0, 1, 0}, {1, 1, 1, 0}, {0, 0, 0, 0}}
+            co = Color.Blue
+        ElseIf type Mod 28 = 21 Then
+            block = {{0, 0, 0, 0}, {1, 1, 1, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Purple
+        ElseIf type Mod 28 = 25 Then
+            block = {{1, 1, 0, 0}, {1, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Blue
+        ElseIf type Mod 28 = 27 Then
+            block = {{1, 0, 0, 0}, {1, 0, 0, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Blue
+        ElseIf type Mod 28 = 0 Then
+            block = {{0, 1, 0, 0}, {1, 1, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Purple
+        Else
+            block = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}
+            co = Color.Purple
+            MsgBox("wrong in drawing")
+        End If    '刻画方块形状
+        If labNo = 1 Then       '默认绘制下落方块
+            nowPlace = New Point(i * 20 + 1, j * 20 + 1)
+            For m = 0 To 3
+                For n = 0 To 3
+                    If block(m, n) = 1 Then
+                        drop(index) = New Label
+                        drop(index).Size = New Size(18, 18)
+                        Panel1.Controls.Add(drop(index))
+                        drop(index).Location = New Point((n + i) * 20 + 1, (m + j) * 20 + 1)
+                        drop(index).BackColor = co
+                        drop(index).BorderStyle = BorderStyle.FixedSingle
+                        index += 1
+                    End If
+                    If index > 3 Then
+                        Exit For
+                    End If
+                Next
+                If index > 3 Then
+                    Exit For
+                End If
+            Next
+        ElseIf labNo = 2 Then   '绘制预览方块
+            i = 16
+            j = 1
+            For m = 0 To 3
+                For n = 0 To 3
+                    If block(m, n) = 1 Then
+                        preview(index) = New Label
+                        preview(index).Size = New Size(18, 18)
+                        Controls.Add(preview(index))
+                        preview(index).Location = New Point((n + i) * 20 + 1, (m + j) * 20 + 1)
+                        preview(index).BackColor = co
+                        preview(index).BorderStyle = BorderStyle.FixedSingle
+                        index += 1
+                    End If
+                    If index > 3 Then
+                        Exit For
+                    End If
+                Next
+                If index > 3 Then
+                    Exit For
+                End If
+            Next
+        Else     '绘制掉落方块
+            co = Color.Gray
+            For m = 0 To 3
+                For n = 0 To 3
+                    If block(m, n) = 1 Then
+                        If labNo = 3 Then
+                            sunk(index + count) = New Label
+                            sunk(index + count).Size = New Size(18, 18)
+                            Panel1.Controls.Add(sunk(index + count))
+                            sunk(index + count).Location = drop(index).Location
+                            sunk(index + count).BackColor = co
+                            sunk(index).BorderStyle = BorderStyle.FixedSingle
+                        Else
+                            spin(index) = New Label
+                            spin(index).Size = New Size(18, 18)
+                            Panel1.Controls.Add(spin(index))
+                            spin(index).Location = New Point((n + Int(nowPlace.X / 20)) * 20 + 1, (m + Int(nowPlace.Y / 20)) * 20 + 1)
+                            spin(index).BackColor = Color.FromArgb(0, 0, 0, 0)
+                            'spin(index).BackColor = Color.White
+                        End If
+                        index += 1
+                    End If
+                    If index > 3 Then
+                        Exit For
+                    End If
+                Next
+                If index > 3 Then
+                    Exit For
+                End If
+            Next
+        End If
+
+    End Sub
+
+    Private Sub Form1_KeyPress(sender As Object, e As KeyPressEventArgs) Handles Me.KeyPress
+        If Timer1.Enabled Then
+            If e.KeyChar = "a" And Not Intect(2) Then
+                MoveBlock(2)
+            ElseIf e.KeyChar = "d" And Not Intect(3) Then
+                MoveBlock(3)
+            ElseIf e.KeyChar = "s" Then
+                If Not Intect(1) Then
+                    MoveBlock(1)
+                Else
+                    SinkBlock()
+                End If
+            ElseIf e.KeyChar = "q" Then
+                SpinBlock(False)
+            ElseIf e.KeyChar = "e" Then
+                SpinBlock()
+            End If
+
+        End If
+    End Sub
+End Class
